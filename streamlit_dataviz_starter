@@ -1,1 +1,133 @@
+import streamlit as st
+import pandas as pd
+import numpy as np
+import plotly.express as px
+import plotly.graph_objects as go
 
+# Page config
+st.set_page_config(
+    page_title="Data Viz Dashboard",
+    page_icon="📊",
+    layout="wide"
+)
+
+# Title and description
+st.title("📊 Interactive Data Visualization Dashboard")
+st.markdown("Welcome to your first Streamlit app! Upload data or use our sample dataset.")
+
+# Sidebar for controls
+st.sidebar.header("🎛️ Controls")
+
+# Option to use sample data or upload
+data_source = st.sidebar.radio(
+    "Choose data source:",
+    ["Sample Data", "Upload CSV"]
+)
+
+# Load data based on selection
+if data_source == "Sample Data":
+    # Generate sample sales data
+    np.random.seed(42)
+    dates = pd.date_range('2023-01-01', periods=365, freq='D')
+    data = {
+        'Date': dates,
+        'Sales': np.random.normal(1000, 200, 365).round(2),
+        'Category': np.random.choice(['Electronics', 'Clothing', 'Books', 'Home'], 365),
+        'Region': np.random.choice(['North', 'South', 'East', 'West'], 365)
+    }
+    df = pd.DataFrame(data)
+    st.success("✅ Sample data loaded!")
+    
+else:
+    uploaded_file = st.sidebar.file_uploader("Choose a CSV file", type="csv")
+    if uploaded_file is not None:
+        df = pd.read_csv(uploaded_file)
+        st.success("✅ File uploaded successfully!")
+    else:
+        st.info("👆 Please upload a CSV file to get started")
+        st.stop()
+
+# Display data overview
+if 'df' in locals():
+    st.subheader("📋 Data Overview")
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Total Rows", len(df))
+    with col2:
+        st.metric("Total Columns", len(df.columns))
+    with col3:
+        if 'Sales' in df.columns:
+            st.metric("Avg Sales", f"${df['Sales'].mean():.2f}")
+    
+    # Show data preview
+    if st.checkbox("Show raw data"):
+        st.dataframe(df.head(10))
+    
+    # Chart selection
+    st.subheader("📈 Visualizations")
+    
+    chart_type = st.selectbox(
+        "Choose chart type:",
+        ["Line Chart", "Bar Chart", "Scatter Plot", "Histogram"]
+    )
+    
+    # Column selection for charts
+    numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+    categorical_cols = df.select_dtypes(include=['object']).columns.tolist()
+    
+    if chart_type == "Line Chart":
+        if len(numeric_cols) >= 1:
+            y_col = st.selectbox("Select Y-axis:", numeric_cols)
+            x_col = st.selectbox("Select X-axis:", df.columns.tolist())
+            
+            fig = px.line(df, x=x_col, y=y_col, title=f"{y_col} over {x_col}")
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.error("No numeric columns found for line chart")
+    
+    elif chart_type == "Bar Chart":
+        if len(categorical_cols) >= 1 and len(numeric_cols) >= 1:
+            x_col = st.selectbox("Select category:", categorical_cols)
+            y_col = st.selectbox("Select value:", numeric_cols)
+            
+            grouped_data = df.groupby(x_col)[y_col].mean().reset_index()
+            fig = px.bar(grouped_data, x=x_col, y=y_col, 
+                        title=f"Average {y_col} by {x_col}")
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.error("Need at least one categorical and one numeric column")
+    
+    elif chart_type == "Scatter Plot":
+        if len(numeric_cols) >= 2:
+            x_col = st.selectbox("Select X-axis:", numeric_cols)
+            y_col = st.selectbox("Select Y-axis:", [col for col in numeric_cols if col != x_col])
+            color_col = st.selectbox("Color by (optional):", ["None"] + categorical_cols)
+            
+            color = None if color_col == "None" else color_col
+            fig = px.scatter(df, x=x_col, y=y_col, color=color,
+                           title=f"{x_col} vs {y_col}")
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.error("Need at least two numeric columns for scatter plot")
+    
+    elif chart_type == "Histogram":
+        if len(numeric_cols) >= 1:
+            col = st.selectbox("Select column:", numeric_cols)
+            bins = st.slider("Number of bins:", 10, 100, 30)
+            
+            fig = px.histogram(df, x=col, nbins=bins, title=f"Distribution of {col}")
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.error("No numeric columns found for histogram")
+    
+    # Summary statistics
+    st.subheader("📊 Summary Statistics")
+    if len(numeric_cols) > 0:
+        st.dataframe(df[numeric_cols].describe())
+    else:
+        st.info("No numeric columns to summarize")
+
+# Footer
+st.markdown("---")
+st.markdown("Built with ❤️ using Streamlit")
